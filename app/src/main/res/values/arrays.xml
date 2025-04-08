@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="days_of_week">
+        <item>Monday</item>
+        <item>Tuesday</item>
+        <item>Wednesday</item>
+        <item>Thursday</item>
+        <item>Friday</item>
+        <item>Saturday</item>
+        <item>Sunday</item>
+    </string-array>
+    
+    <string-array name="search_types">
+        <item>Teacher</item>
+        <item>Date</item>
+        <item>Day of Week</item>
+    </string-array>
+    
+    <string-array name="yoga_course_types">
+        <item>Hatha Yoga</item>
+        <item>Vinyasa Flow</item>
+        <item>Ashtanga Yoga</item>
+        <item>Iyengar Yoga</item>
+        <item>Kundalini Yoga</item>
+        <item>Yin Yoga</item>
+        <item>Restorative Yoga</item>
+        <item>Power Yoga</item>
+        <item>Prenatal Yoga</item>
+        <item>Hot Yoga</item>
+        <item>Aerial Yoga</item>
+        <item>Acro Yoga</item>
+        <item>Meditation</item>
+        <item>Yoga Nidra</item>
+        <item>Kids Yoga</item>
+    </string-array>
+</resources>
