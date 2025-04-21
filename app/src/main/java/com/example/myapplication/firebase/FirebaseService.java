@@ -1,6 +1,10 @@
 package com.example.myapplication.firebase;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
+import android.os.Build;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -9,7 +13,7 @@ import androidx.lifecycle.MutableLiveData;
 
 import com.example.myapplication.model.ClassInstance;
 import com.example.myapplication.model.Course;
-import com.example.myapplication.util.NetworkUtil;
+import com.example.myapplication.model.Enrollment;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -85,7 +89,29 @@ public class FirebaseService {
         if (context == null) {
             return persistenceEnabled; // Default to true if persistence is enabled
         }
-        return NetworkUtil.isNetworkAvailable(context);
+        
+        // Simple network check
+        ConnectivityManager connectivityManager = 
+                (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        
+        if (connectivityManager == null) {
+            return false;
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            // For Android 6.0 (API 23) and above
+            NetworkCapabilities capabilities = 
+                    connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+            
+            return capabilities != null && (
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
+        } else {
+            // For Android 5.1 (API 22) and below
+            NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+            return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+        }
     }
 
     // Course operations
@@ -451,6 +477,45 @@ public class FirebaseService {
         
         return classInstancesLiveData;
     }
+    
+    /**
+     * Get class instances by course ID (alias for getClassInstancesForCourse)
+     * @param courseId Course ID
+     * @return LiveData with list of class instances
+     */
+    public LiveData<List<ClassInstance>> getClassInstancesByCourse(String courseId) {
+        // This is an alias for getClassInstancesForCourse to maintain API compatibility
+        return getClassInstancesForCourse(courseId);
+    }
+    
+    /**
+     * Get class instance by ID
+     * @param id Class instance ID
+     * @return LiveData with class instance
+     */
+    public LiveData<ClassInstance> getClassInstanceById(String id) {
+        MutableLiveData<ClassInstance> classInstanceLiveData = new MutableLiveData<>();
+        
+        db.collection(CLASS_INSTANCES_COLLECTION)
+                .document(id)
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        ClassInstance classInstance = documentSnapshot.toObject(ClassInstance.class);
+                        classInstanceLiveData.setValue(classInstance);
+                        Log.d(TAG, "Retrieved class instance with ID: " + id);
+                    } else {
+                        classInstanceLiveData.setValue(null);
+                        Log.d(TAG, "No class instance found with ID: " + id);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    classInstanceLiveData.setValue(null);
+                    Log.e(TAG, "Error getting class instance", e);
+                });
+        
+        return classInstanceLiveData;
+    }
 
     // Search operations
     public LiveData<List<ClassInstance>> searchClassInstancesByTeacher(String teacherName) {
@@ -562,6 +627,89 @@ public class FirebaseService {
         }
     }
 
+    // Enrollment operations
+    private static final String ENROLLMENTS_COLLECTION = "enrollments";
+    
+    /**
+     * Enroll a user in a class instance
+     * @param userId User ID
+     * @param classInstanceId Class instance ID
+     * @return LiveData with boolean result
+     */
+    public LiveData<Boolean> enrollInClass(String userId, String classInstanceId) {
+        MutableLiveData<Boolean> result = new MutableLiveData<>();
+        
+        // Check if the class instance exists
+        getClassInstanceById(classInstanceId).observeForever(classInstance -> {
+            if (classInstance != null) {
+                // Check if the user is already enrolled
+                db.collection(ENROLLMENTS_COLLECTION)
+                        .whereEqualTo("userId", userId)
+                        .whereEqualTo("classInstanceId", classInstanceId)
+                        .get()
+                        .addOnSuccessListener(queryDocumentSnapshots -> {
+                            if (queryDocumentSnapshots.isEmpty()) {
+                                // User is not enrolled, create a new enrollment
+                                Enrollment enrollment = new Enrollment(userId, classInstanceId);
+                                
+                                db.collection(ENROLLMENTS_COLLECTION)
+                                        .add(enrollment)
+                                        .addOnSuccessListener(documentReference -> {
+                                            enrollment.setId(documentReference.getId());
+                                            result.setValue(true);
+                                            Log.d(TAG, "User enrolled in class successfully");
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            result.setValue(false);
+                                            Log.e(TAG, "Error enrolling user in class", e);
+                                        });
+                            } else {
+                                // User is already enrolled
+                                result.setValue(true);
+                                Log.d(TAG, "User is already enrolled in this class");
+                            }
+                        })
+                        .addOnFailureListener(e -> {
+                            result.setValue(false);
+                            Log.e(TAG, "Error checking if user is enrolled", e);
+                        });
+            } else {
+                result.setValue(false);
+                Log.e(TAG, "Class instance not found with ID: " + classInstanceId);
+            }
+        });
+        
+        return result;
+    }
+    
+    /**
+     * Get all enrollments for a user
+     * @param userId User ID
+     * @return LiveData with list of enrollments
+     */
+    public LiveData<List<Enrollment>> getUserEnrollments(String userId) {
+        MutableLiveData<List<Enrollment>> enrollmentsLiveData = new MutableLiveData<>();
+        
+        db.collection(ENROLLMENTS_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    List<Enrollment> enrollments = new ArrayList<>();
+                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                        Enrollment enrollment = document.toObject(Enrollment.class);
+                        enrollments.add(enrollment);
+                    }
+                    enrollmentsLiveData.setValue(enrollments);
+                    Log.d(TAG, "Retrieved " + enrollments.size() + " enrollments for user: " + userId);
+                })
+                .addOnFailureListener(e -> {
+                    enrollmentsLiveData.setValue(new ArrayList<>());
+                    Log.e(TAG, "Error getting enrollments for user", e);
+                });
+        
+        return enrollmentsLiveData;
+    }
+    
     // Data reset operation
     public LiveData<Boolean> resetAllData() {
         MutableLiveData<Boolean> result = new MutableLiveData<>();
@@ -584,15 +732,28 @@ public class FirebaseService {
                                     batch.delete(document.getReference());
                                 }
                                 
-                                // Commit the batch
-                                batch.commit()
-                                        .addOnSuccessListener(aVoid -> {
-                                            result.setValue(true);
-                                            Log.d(TAG, "All data reset successfully");
+                                // Delete all enrollments
+                                db.collection(ENROLLMENTS_COLLECTION)
+                                        .get()
+                                        .addOnSuccessListener(enrollmentsSnapshot -> {
+                                            for (QueryDocumentSnapshot document : enrollmentsSnapshot) {
+                                                batch.delete(document.getReference());
+                                            }
+                                            
+                                            // Commit the batch
+                                            batch.commit()
+                                                    .addOnSuccessListener(aVoid -> {
+                                                        result.setValue(true);
+                                                        Log.d(TAG, "All data reset successfully");
+                                                    })
+                                                    .addOnFailureListener(e -> {
+                                                        result.setValue(false);
+                                                        Log.e(TAG, "Error resetting data", e);
+                                                    });
                                         })
                                         .addOnFailureListener(e -> {
                                             result.setValue(false);
-                                            Log.e(TAG, "Error resetting data", e);
+                                            Log.e(TAG, "Error getting enrollments for reset", e);
                                         });
                             })
                             .addOnFailureListener(e -> {

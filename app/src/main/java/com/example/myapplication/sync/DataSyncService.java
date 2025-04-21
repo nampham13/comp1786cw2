@@ -9,7 +9,6 @@ import androidx.lifecycle.MutableLiveData;
 import com.example.myapplication.firebase.FirebaseService;
 import com.example.myapplication.model.ClassInstance;
 import com.example.myapplication.model.Course;
-import com.example.myapplication.util.NetworkUtil;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,7 +42,7 @@ public class DataSyncService {
         MutableLiveData<SyncResult> resultLiveData = new MutableLiveData<>();
         
         // Check network connectivity
-        if (!NetworkUtil.isNetworkAvailable(context)) {
+        if (!firebaseService.isOnline(context)) {
             resultLiveData.setValue(new SyncResult(false, "No network connection available"));
             return resultLiveData;
         }
@@ -93,6 +92,25 @@ public class DataSyncService {
      */
     public LiveData<Boolean> uploadClassInstance(ClassInstance classInstance) {
         return firebaseService.addClassInstance(classInstance);
+    }
+    
+    /**
+     * Synchronize data with Firebase
+     * @return LiveData with sync result (boolean)
+     */
+    public LiveData<Boolean> syncData() {
+        MutableLiveData<Boolean> resultLiveData = new MutableLiveData<>();
+        
+        // Get all courses from Firebase to refresh local data
+        firebaseService.getAllCourses().observeForever(courses -> {
+            if (courses != null) {
+                resultLiveData.setValue(true);
+            } else {
+                resultLiveData.setValue(false);
+            }
+        });
+        
+        return resultLiveData;
     }
     
     /**

@@ -2,6 +2,7 @@ package com.example.myapplication;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -20,20 +21,14 @@ import com.example.myapplication.sync.DataSyncService;
 import com.example.myapplication.ui.AddCourseActivity;
 import com.example.myapplication.ui.CourseDetailActivity;
 import com.example.myapplication.ui.SearchActivity;
-import com.example.myapplication.util.NetworkUtil;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.disposables.Disposable;
 
 public class MainActivity extends AppCompatActivity implements CourseAdapter.CourseClickListener {
     private ActivityMainBinding binding;
     private CourseAdapter courseAdapter;
     private FirebaseService firebaseService;
-    private DataSyncService dataSyncService;
-    private CompositeDisposable disposables = new CompositeDisposable();
     private List<Course> courseList = new ArrayList<>();
 
     @Override
@@ -45,7 +40,7 @@ public class MainActivity extends AppCompatActivity implements CourseAdapter.Cou
 
         // Initialize services
         firebaseService = FirebaseService.getInstance();
-        dataSyncService = DataSyncService.getInstance();
+        DataSyncService dataSyncService = DataSyncService.getInstance();
 
         // Setup RecyclerView
         courseAdapter = new CourseAdapter(this, courseList, this);
@@ -58,18 +53,13 @@ public class MainActivity extends AppCompatActivity implements CourseAdapter.Cou
             startActivity(intent);
         });
 
-        // Setup network monitoring
-        Disposable networkDisposable = NetworkUtil.monitorNetworkConnectivity(this, isConnected -> {
-            binding.networkStatusText.setText(isConnected ? "Online" : "Offline");
-            binding.networkStatusText.setTextColor(getResources().getColor(
-                    isConnected ? android.R.color.holo_green_dark : android.R.color.holo_red_dark, 
-                    getTheme()));
-            binding.syncButton.setEnabled(isConnected);
-        });
-        disposables.add(networkDisposable);
-
         // Setup sync button
         binding.syncButton.setOnClickListener(v -> syncData());
+        
+        // Set default network status
+        binding.networkStatusText.setText("Online");
+        binding.networkStatusText.setTextColor(getResources().getColor(
+                android.R.color.holo_green_dark, getTheme()));
 
         // Load courses
         loadCourses();
@@ -79,12 +69,6 @@ public class MainActivity extends AppCompatActivity implements CourseAdapter.Cou
     protected void onResume() {
         super.onResume();
         loadCourses();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        disposables.clear();
     }
 
     @Override
@@ -131,13 +115,15 @@ public class MainActivity extends AppCompatActivity implements CourseAdapter.Cou
     private void syncData() {
         binding.progressBar.setVisibility(View.VISIBLE);
         
-        dataSyncService.syncAllData(this).observe(this, syncResult -> {
+        // Use DataSyncService to sync data
+        DataSyncService.getInstance().syncData().observe(this, success -> {
             binding.progressBar.setVisibility(View.GONE);
             
-            Toast.makeText(this, syncResult.getMessage(), Toast.LENGTH_SHORT).show();
-            
-            if (syncResult.isSuccess()) {
-                loadCourses();
+            if (success) {
+                Toast.makeText(this, "Data synchronized successfully", Toast.LENGTH_SHORT).show();
+                loadCourses(); // Reload courses after sync
+            } else {
+                Toast.makeText(this, "Failed to synchronize data", Toast.LENGTH_SHORT).show();
             }
         });
     }
