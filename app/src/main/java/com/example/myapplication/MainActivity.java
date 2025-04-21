@@ -2,6 +2,7 @@ package com.example.myapplication;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -13,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.example.myapplication.adapter.CourseAdapter;
+import com.example.myapplication.cloud.CloudService;
 import com.example.myapplication.databinding.ActivityMainBinding;
 import com.example.myapplication.firebase.FirebaseService;
 import com.example.myapplication.model.Course;
@@ -20,20 +22,16 @@ import com.example.myapplication.sync.DataSyncService;
 import com.example.myapplication.ui.AddCourseActivity;
 import com.example.myapplication.ui.CourseDetailActivity;
 import com.example.myapplication.ui.SearchActivity;
-import com.example.myapplication.util.NetworkUtil;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.disposables.Disposable;
 
 public class MainActivity extends AppCompatActivity implements CourseAdapter.CourseClickListener {
     private ActivityMainBinding binding;
     private CourseAdapter courseAdapter;
     private FirebaseService firebaseService;
     private DataSyncService dataSyncService;
-    private CompositeDisposable disposables = new CompositeDisposable();
+    private CloudService cloudService;
     private List<Course> courseList = new ArrayList<>();
 
     @Override
@@ -46,6 +44,7 @@ public class MainActivity extends AppCompatActivity implements CourseAdapter.Cou
         // Initialize services
         firebaseService = FirebaseService.getInstance();
         dataSyncService = DataSyncService.getInstance();
+        cloudService = CloudService.getInstance();
 
         // Setup RecyclerView
         courseAdapter = new CourseAdapter(this, courseList, this);
@@ -58,18 +57,13 @@ public class MainActivity extends AppCompatActivity implements CourseAdapter.Cou
             startActivity(intent);
         });
 
-        // Setup network monitoring
-        Disposable networkDisposable = NetworkUtil.monitorNetworkConnectivity(this, isConnected -> {
-            binding.networkStatusText.setText(isConnected ? "Online" : "Offline");
-            binding.networkStatusText.setTextColor(getResources().getColor(
-                    isConnected ? android.R.color.holo_green_dark : android.R.color.holo_red_dark, 
-                    getTheme()));
-            binding.syncButton.setEnabled(isConnected);
-        });
-        disposables.add(networkDisposable);
-
         // Setup sync button
         binding.syncButton.setOnClickListener(v -> syncData());
+        
+        // Set default network status
+        binding.networkStatusText.setText("Online");
+        binding.networkStatusText.setTextColor(getResources().getColor(
+                android.R.color.holo_green_dark, getTheme()));
 
         // Load courses
         loadCourses();
@@ -79,12 +73,6 @@ public class MainActivity extends AppCompatActivity implements CourseAdapter.Cou
     protected void onResume() {
         super.onResume();
         loadCourses();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        disposables.clear();
     }
 
     @Override
@@ -131,13 +119,27 @@ public class MainActivity extends AppCompatActivity implements CourseAdapter.Cou
     private void syncData() {
         binding.progressBar.setVisibility(View.VISIBLE);
         
-        dataSyncService.syncAllData(this).observe(this, syncResult -> {
+        // Use the new CloudService to get available courses
+        cloudService.getAvailableCourses().observe(this, courses -> {
             binding.progressBar.setVisibility(View.GONE);
             
-            Toast.makeText(this, syncResult.getMessage(), Toast.LENGTH_SHORT).show();
-            
-            if (syncResult.isSuccess()) {
-                loadCourses();
+            if (courses != null && !courses.isEmpty()) {
+                courseList.clear();
+                courseList.addAll(courses);
+                courseAdapter.notifyDataSetChanged();
+                binding.emptyView.setVisibility(View.GONE);
+                binding.recyclerView.setVisibility(View.VISIBLE);
+                
+                // Subscribe to notifications for each course
+                for (Course course : courses) {
+                    cloudService.subscribeToCourse(course.getId());
+                }
+                
+                Toast.makeText(this, "Data synchronized successfully", Toast.LENGTH_SHORT).show();
+            } else {
+                binding.emptyView.setVisibility(View.VISIBLE);
+                binding.recyclerView.setVisibility(View.GONE);
+                Toast.makeText(this, "No courses available", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -171,5 +173,12 @@ public class MainActivity extends AppCompatActivity implements CourseAdapter.Cou
         Intent intent = new Intent(this, CourseDetailActivity.class);
         intent.putExtra("course_id", course.getId());
         startActivity(intent);
+        
+        // Subscribe to notifications for this course
+        cloudService.subscribeToCourse(course.getId()).observe(this, success -> {
+            if (success) {
+                Log.d("MainActivity", "Subscribed to course: " + course.getName());
+            }
+        });
     }
 }

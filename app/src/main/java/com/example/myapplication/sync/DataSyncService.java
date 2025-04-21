@@ -9,7 +9,6 @@ import androidx.lifecycle.MutableLiveData;
 import com.example.myapplication.firebase.FirebaseService;
 import com.example.myapplication.model.ClassInstance;
 import com.example.myapplication.model.Course;
-import com.example.myapplication.util.NetworkUtil;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,7 +42,7 @@ public class DataSyncService {
         MutableLiveData<SyncResult> resultLiveData = new MutableLiveData<>();
         
         // Check network connectivity
-        if (!NetworkUtil.isNetworkAvailable(context)) {
+        if (!firebaseService.isOnline(context)) {
             resultLiveData.setValue(new SyncResult(false, "No network connection available"));
             return resultLiveData;
         }

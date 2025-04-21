@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "123456789012",
-    "project_id": "yoga-studio-admin-app",
-    "storage_bucket": "yoga-studio-admin-app.appspot.com"
+    "project_number": "757452593661",
+    "project_id": "yoga-booking-app-8d38b",
+    "storage_bucket": "yoga-booking-app-8d38b.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789012:android:abcdef1234567890",
+        "mobilesdk_app_id": "1:757452593661:android:b04973e7bc113bdc77e194",
         "android_client_info": {
           "package_name": "com.example.myapplication"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg"
+          "current_key": "AIzaSyCYNmTN2ZZXB7LI9Vw7TYt4mEGxqhn_98o"
         }
       ],
       "services": {

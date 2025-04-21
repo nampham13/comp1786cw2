@@ -45,10 +45,11 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     
     // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    implementation(platform("com.google.firebase:firebase-bom:32.7.4"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-storage")
+    implementation("com.google.firebase:firebase-analytics")
     
     // Network connectivity check
     implementation("com.github.pwittchen:reactivenetwork-rx2:3.0.8")
